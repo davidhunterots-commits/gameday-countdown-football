@@ -415,6 +415,31 @@
     color:var(--team-a);
     padding:14px 0 4px;
   }
+  .tbd-banner{
+    text-align:center;
+    padding:24px 10px 10px;
+  }
+  .tbd-banner-title{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:0.1em;
+    font-size:22px;
+    font-weight:600;
+    color:var(--chalk);
+    margin:0 0 6px;
+  }
+  .tbd-banner-sub{
+    font-family:'Oswald',sans-serif;
+    letter-spacing:0.04em;
+    font-size:14px;
+    color:var(--chalk-dim);
+    margin:0 0 10px;
+  }
+  .tbd-banner-hint{
+    font-size:12px;
+    color:var(--chalk-dim);
+    margin:0;
+  }
 
   /* Controls */
   .panel{
@@ -599,6 +624,26 @@
     text-align:center;
     margin:-6px 0 14px;
   }
+  .preload-row{
+    display:flex;
+    gap:8px;
+    margin-bottom:6px;
+  }
+  .preload-row select{
+    flex:1;
+  }
+  .preload-row .btn{
+    flex-shrink:0;
+    width:auto;
+    padding-left:16px;
+    padding-right:16px;
+  }
+  .preload-hint{
+    font-size:11px;
+    color:var(--chalk-dim);
+    text-align:center;
+    margin:0 0 18px;
+  }
   .save-colors-hint{
     font-size:11px;
     color:var(--accent);
@@ -746,6 +791,11 @@
           </div>
         </div>
         <p class="live-banner" id="liveBanner" style="display:none;">Kickoff!</p>
+        <div class="tbd-banner" id="tbdBanner" style="display:none;">
+          <p class="tbd-banner-title">Kickoff Time TBD</p>
+          <p class="tbd-banner-sub" id="tbdBannerDate"></p>
+          <p class="tbd-banner-hint">Set the Kickoff field below once it's announced.</p>
+        </div>
       </div>
 
       <div class="kickoff-inline">
@@ -828,6 +878,12 @@
         <button class="btn" id="removeDeckBtn">Remove This List</button>
       </div>
 
+      <div class="preload-row">
+        <select id="preloadTeamSelect"></select>
+        <button class="btn" id="preloadLoadBtn">Load 2026 Schedule</button>
+      </div>
+      <p class="preload-hint" id="preloadHint">Instantly fills this list with a real 2026 schedule — replaces whatever's already in it.</p>
+
       <p class="season-hint">Saved automatically on this device — no account needed.</p>
       <label class="toggle-row" for="autoAdvanceToggle">
         <input type="checkbox" id="autoAdvanceToggle" checked>
@@ -904,12 +960,471 @@
   };
   function colorName(hex){ return COLOR_NAMES[hex.toUpperCase()] || hex; }
 
+  // ---- Preloaded 2026 schedules ----
+  // Real 2026 games for a starter set of teams, so a schedule can be
+  // loaded instantly instead of building it by hand or importing a file.
+  // Kickoff times below are what's officially confirmed as of this build;
+  // everything else is genuinely TBD (kickoffTBD:true) — the date shown is
+  // correct, but the time hasn't been announced by the network/conference
+  // yet. Loading a schedule doesn't overwrite anything already in it.
+  const PRELOADED_SCHEDULES = {
+    "Tennessee": [
+      { opponent:"Furman",           homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T15:30:00", kickoffTBD:false },
+      { opponent:"Georgia Tech",     homeAway:"Away", gameType:"Non-Conference Game", kickoff:"2026-09-12T19:00:00", kickoffTBD:false },
+      { opponent:"Kennesaw State",   homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-19T19:45:00", kickoffTBD:false },
+      { opponent:"Texas",            homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:false },
+      { opponent:"Auburn",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Arkansas",         homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Alabama",          homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"South Carolina",   homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Kentucky",         homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Texas A&M",        homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"LSU",              homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Vanderbilt",       homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Auburn": [
+      { opponent:"Baylor",              homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T12:00:00", kickoffTBD:true },
+      { opponent:"Southern Miss",       homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T12:00:00", kickoffTBD:true },
+      { opponent:"Florida",             homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-19T12:00:00", kickoffTBD:true },
+      { opponent:"Vanderbilt",          homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Tennessee",           homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Georgia",             homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"LSU",                 homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Ole Miss",            homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Arkansas",            homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Mississippi State",   homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Samford",             homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Alabama",             homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Vanderbilt": [
+      { opponent:"Austin Peay",         homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T18:00:00", kickoffTBD:false },
+      { opponent:"Delaware",            homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T15:15:00", kickoffTBD:false },
+      { opponent:"NC State",            homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-19T11:45:00", kickoffTBD:false },
+      { opponent:"Auburn",              homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Georgia",             homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Ole Miss",            homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Arkansas",            homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Kentucky",            homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Mississippi State",   homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Alabama",             homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Florida",             homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Tennessee",           homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Ohio State": [
+      { opponent:"Ball State",     homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T12:30:00", kickoffTBD:false },
+      { opponent:"Texas",          homeAway:"Away", gameType:"Non-Conference Game", kickoff:"2026-09-12T19:30:00", kickoffTBD:false },
+      { opponent:"Kent State",     homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-19T12:00:00", kickoffTBD:false },
+      { opponent:"Illinois",       homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Iowa",           homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Maryland",       homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Indiana",        homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"USC",            homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Oregon",         homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Northwestern",   homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Nebraska",       homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Michigan",       homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:false }
+    ],
+    "Oregon": [
+      { opponent:"Boise State",       homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T15:30:00", kickoffTBD:false },
+      { opponent:"Oklahoma State",    homeAway:"Away", gameType:"Non-Conference Game", kickoff:"2026-09-12T12:00:00", kickoffTBD:true },
+      { opponent:"Portland State",    homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-19T12:00:00", kickoffTBD:true },
+      { opponent:"USC",               homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"UCLA",              homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Nebraska",          homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Illinois",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Northwestern",      homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Ohio State",        homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Michigan",          homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Michigan State",    homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-20T20:00:00", kickoffTBD:false },
+      { opponent:"Washington",        homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Georgia": [
+      { opponent:"Tennessee State",     homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T15:00:00", kickoffTBD:false },
+      { opponent:"Western Kentucky",    homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T12:45:00", kickoffTBD:false },
+      { opponent:"Arkansas",            homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-19T12:00:00", kickoffTBD:false },
+      { opponent:"Oklahoma",            homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Vanderbilt",          homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Alabama",             homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Auburn",              homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Florida",             homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-10-31T15:30:00", kickoffTBD:false },
+      { opponent:"Ole Miss",            homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Missouri",            homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"South Carolina",      homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Georgia Tech",        homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Notre Dame": [
+      { opponent:"Wisconsin",          homeAway:"Away", gameType:"Season Opener",       kickoff:"2026-09-06T19:30:00", kickoffTBD:false },
+      { opponent:"Rice",               homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T12:00:00", kickoffTBD:true },
+      { opponent:"Michigan State",     homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-19T12:00:00", kickoffTBD:true },
+      { opponent:"Purdue",             homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"North Carolina",     homeAway:"Away", gameType:"Non-Conference Game", kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Stanford",           homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"BYU",                homeAway:"Away", gameType:"Non-Conference Game", kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Navy",               homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Miami",              homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Boston College",     homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"SMU",                homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Syracuse",           homeAway:"Away", gameType:"Non-Conference Game", kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Texas": [
+      { opponent:"Texas State",     homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T15:30:00", kickoffTBD:false },
+      { opponent:"Ohio State",      homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T19:30:00", kickoffTBD:false },
+      { opponent:"UTSA",            homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-19T20:00:00", kickoffTBD:false },
+      { opponent:"Tennessee",       homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:false },
+      { opponent:"Oklahoma",        homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-10-10T15:30:00", kickoffTBD:false },
+      { opponent:"Florida",         homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Ole Miss",        homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Mississippi State", homeAway:"Home", gameType:"Conference Game",   kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Missouri",        homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"LSU",             homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Arkansas",        homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Texas A&M",       homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-11-27T18:30:00", kickoffTBD:false }
+    ],
+    "Indiana": [
+      { opponent:"North Texas",        homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T12:00:00", kickoffTBD:false },
+      { opponent:"Howard",             homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T12:00:00", kickoffTBD:false },
+      { opponent:"Western Kentucky",   homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-19T16:00:00", kickoffTBD:false },
+      { opponent:"Northwestern",       homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-25T20:00:00", kickoffTBD:false },
+      { opponent:"Rutgers",            homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-03T20:00:00", kickoffTBD:false },
+      { opponent:"Nebraska",           homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Ohio State",         homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Michigan",           homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Minnesota",          homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"USC",                homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Washington",         homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Purdue",             homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Miami": [
+      { opponent:"Stanford",          homeAway:"Away", gameType:"Season Opener",       kickoff:"2026-09-04T21:00:00", kickoffTBD:false },
+      { opponent:"Florida A&M",       homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-10T20:00:00", kickoffTBD:false },
+      { opponent:"Wake Forest",       homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-18T19:30:00", kickoffTBD:false },
+      { opponent:"Central Michigan",  homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-26T18:30:00", kickoffTBD:false },
+      { opponent:"Clemson",           homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Florida State",     homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Pittsburgh",        homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"North Carolina",    homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Notre Dame",        homeAway:"Away", gameType:"Non-Conference Game", kickoff:"2026-11-07T19:30:00", kickoffTBD:false },
+      { opponent:"Duke",              homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Virginia Tech",     homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Boston College",    homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Texas A&M": [
+      { opponent:"Missouri State",   homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T18:00:00", kickoffTBD:false },
+      { opponent:"Arizona State",    homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T11:00:00", kickoffTBD:false },
+      { opponent:"Kentucky",         homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-19T14:30:00", kickoffTBD:false },
+      { opponent:"LSU",              homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Arkansas",         homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Missouri",         homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"The Citadel",      homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-10-17T12:00:00", kickoffTBD:false },
+      { opponent:"Alabama",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"South Carolina",   homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Tennessee",        homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Oklahoma",         homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Texas",            homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-11-27T18:30:00", kickoffTBD:false }
+    ],
+    "Ole Miss": [
+      { opponent:"Louisville",         homeAway:"Away", gameType:"Season Opener",       kickoff:"2026-09-06T19:30:00", kickoffTBD:false },
+      { opponent:"Charlotte",          homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T19:45:00", kickoffTBD:false },
+      { opponent:"LSU",                homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-19T19:30:00", kickoffTBD:false },
+      { opponent:"Florida",            homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Vanderbilt",         homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Missouri",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Texas",              homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Auburn",             homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Georgia",            homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Oklahoma",           homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Wofford",            homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Mississippi State",  homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:false }
+    ],
+    "Oklahoma": [
+      { opponent:"UTEP",             homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T12:00:00", kickoffTBD:true },
+      { opponent:"Michigan",         homeAway:"Away", gameType:"Non-Conference Game", kickoff:"2026-09-12T12:00:00", kickoffTBD:true },
+      { opponent:"New Mexico",       homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-19T12:00:00", kickoffTBD:true },
+      { opponent:"Georgia",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Texas",            homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-10-10T15:30:00", kickoffTBD:false },
+      { opponent:"Kentucky",         homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Mississippi State", homeAway:"Away", gameType:"Conference Game",    kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"South Carolina",   homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Florida",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Ole Miss",         homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Texas A&M",        homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Missouri",         homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "LSU": [
+      { opponent:"Clemson",           homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T19:30:00", kickoffTBD:false },
+      { opponent:"Louisiana Tech",    homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T12:00:00", kickoffTBD:true },
+      { opponent:"Ole Miss",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-19T12:00:00", kickoffTBD:true },
+      { opponent:"Texas A&M",         homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"McNeese State",     homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Kentucky",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Mississippi State", homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Auburn",            homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Alabama",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Texas",             homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Tennessee",         homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Arkansas",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Texas Tech": [
+      { opponent:"Abilene Christian", homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T19:00:00", kickoffTBD:false },
+      { opponent:"Oregon State",      homeAway:"Away", gameType:"Non-Conference Game", kickoff:"2026-09-12T19:30:00", kickoffTBD:false },
+      { opponent:"Houston",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-18T20:00:00", kickoffTBD:false },
+      { opponent:"Sam Houston",       homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Colorado",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Arizona State",     homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Cincinnati",        homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Arizona",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"West Virginia",     homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Oklahoma State",    homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Baylor",            homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"TCU",               homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-11-26T20:00:00", kickoffTBD:false }
+    ],
+    "Alabama": [
+      { opponent:"East Carolina",     homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T12:00:00", kickoffTBD:false },
+      { opponent:"Kentucky",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-12T12:00:00", kickoffTBD:true },
+      { opponent:"Florida State",     homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-19T12:00:00", kickoffTBD:true },
+      { opponent:"South Carolina",    homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Mississippi State", homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Georgia",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Tennessee",         homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Texas A&M",         homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"LSU",               homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Vanderbilt",        homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Chattanooga",       homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Auburn",            homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "BYU": [
+      { opponent:"Utah Tech",         homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T12:00:00", kickoffTBD:true },
+      { opponent:"Arizona",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-12T12:00:00", kickoffTBD:true },
+      { opponent:"Colorado State",    homeAway:"Away", gameType:"Non-Conference Game", kickoff:"2026-09-19T12:00:00", kickoffTBD:true },
+      { opponent:"TCU",               homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Iowa State",        homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-09T22:15:00", kickoffTBD:false },
+      { opponent:"Notre Dame",        homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"UCF",               homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Arizona State",     homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Utah",              homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Baylor",            homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Kansas",            homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Cincinnati",        homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "USC": [
+      { opponent:"San José State",    homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-08-29T15:00:00", kickoffTBD:false },
+      { opponent:"Fresno State",      homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-04T21:00:00", kickoffTBD:false },
+      { opponent:"Louisiana",         homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T23:00:00", kickoffTBD:false },
+      { opponent:"Rutgers",           homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-19T15:30:00", kickoffTBD:false },
+      { opponent:"Oregon",            homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Washington",        homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Penn State",        homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Wisconsin",         homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Ohio State",        homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Indiana",           homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Maryland",          homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"UCLA",              homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Michigan": [
+      { opponent:"Western Michigan",  homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T19:30:00", kickoffTBD:false },
+      { opponent:"Oklahoma",          homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T12:00:00", kickoffTBD:false },
+      { opponent:"UTEP",              homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-19T15:30:00", kickoffTBD:false },
+      { opponent:"Iowa",              homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Minnesota",         homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Penn State",        homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Indiana",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Rutgers",           homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Michigan State",    homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Oregon",            homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"UCLA",              homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Ohio State",        homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Washington": [
+      { opponent:"Washington State",  homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-09-05T12:00:00", kickoffTBD:true },
+      { opponent:"Utah State",        homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T15:30:00", kickoffTBD:false },
+      { opponent:"Eastern Washington", homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-19T19:15:00", kickoffTBD:false },
+      { opponent:"Minnesota",         homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"USC",               homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Iowa",              homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-09T21:00:00", kickoffTBD:false },
+      { opponent:"Purdue",            homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-16T20:00:00", kickoffTBD:false },
+      { opponent:"Nebraska",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Penn State",        homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Michigan State",    homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Indiana",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Oregon",            homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Penn State": [
+      { opponent:"Marshall",          homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T15:30:00", kickoffTBD:false },
+      { opponent:"Temple",            homeAway:"Away", gameType:"Non-Conference Game", kickoff:"2026-09-12T12:00:00", kickoffTBD:false },
+      { opponent:"Buffalo",           homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-19T12:00:00", kickoffTBD:false },
+      { opponent:"Wisconsin",         homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Northwestern",      homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-02T20:00:00", kickoffTBD:false },
+      { opponent:"USC",               homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Michigan",          homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Purdue",            homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Washington",        homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Minnesota",         homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Rutgers",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Maryland",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "SMU": [
+      { opponent:"Florida State",     homeAway:"Away", gameType:"Season Opener",       kickoff:"2026-09-07T12:00:00", kickoffTBD:false },
+      { opponent:"UC Davis",          homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T12:00:00", kickoffTBD:true },
+      { opponent:"Louisville",        homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-19T15:30:00", kickoffTBD:false },
+      { opponent:"Missouri State",    homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Boston College",    homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Virginia",          homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"California",        homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Syracuse",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Virginia Tech",     homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Wake Forest",       homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Notre Dame",        homeAway:"Away", gameType:"Non-Conference Game", kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Stanford",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Utah": [
+      { opponent:"Idaho",             homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-03T21:00:00", kickoffTBD:false },
+      { opponent:"Arkansas",          homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T22:15:00", kickoffTBD:false },
+      { opponent:"Utah State",        homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-09-19T15:30:00", kickoffTBD:false },
+      { opponent:"Iowa State",        homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Kansas",            homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Colorado",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Houston",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Cincinnati",        homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"BYU",               homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Arizona",           homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"TCU",               homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"West Virginia",     homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-27T21:00:00", kickoffTBD:false }
+    ],
+    "Iowa": [
+      { opponent:"Northern Illinois", homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T16:15:00", kickoffTBD:false },
+      { opponent:"Iowa State",        homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T19:30:00", kickoffTBD:false },
+      { opponent:"Northern Iowa",     homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-19T16:00:00", kickoffTBD:false },
+      { opponent:"Michigan",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Ohio State",        homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Washington",        homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-09T21:00:00", kickoffTBD:false },
+      { opponent:"Minnesota",         homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Wisconsin",         homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Northwestern",      homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Purdue",            homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Illinois",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Nebraska",          homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-11-27T12:00:00", kickoffTBD:false }
+    ],
+    "Houston": [
+      { opponent:"Oregon State",      homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T12:00:00", kickoffTBD:false },
+      { opponent:"Southern",          homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T19:00:00", kickoffTBD:false },
+      { opponent:"Texas Tech",        homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-18T20:00:00", kickoffTBD:false },
+      { opponent:"Georgia Southern",  homeAway:"Away", gameType:"Non-Conference Game", kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"UCF",               homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Kansas State",      homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Oklahoma State",    homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Utah",              homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Cincinnati",        homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Colorado",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"West Virginia",     homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Baylor",            homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Louisville": [
+      { opponent:"Ole Miss",          homeAway:"Away", gameType:"Season Opener",       kickoff:"2026-09-06T19:30:00", kickoffTBD:false },
+      { opponent:"Villanova",         homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-11T19:00:00", kickoffTBD:false },
+      { opponent:"SMU",               homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-19T15:30:00", kickoffTBD:false },
+      { opponent:"Wake Forest",       homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"NC State",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Florida State",     homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-09T19:00:00", kickoffTBD:false },
+      { opponent:"Syracuse",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Stanford",          homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Georgia Tech",      homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"North Carolina",    homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Pittsburgh",        homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Kentucky",          homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Missouri": [
+      { opponent:"Arkansas-Pine Bluff", homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-03T20:00:00", kickoffTBD:false },
+      { opponent:"Kansas",            homeAway:"Away", gameType:"Non-Conference Game", kickoff:"2026-09-11T20:00:00", kickoffTBD:false },
+      { opponent:"Troy",              homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-19T12:45:00", kickoffTBD:false },
+      { opponent:"Mississippi State", homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Florida",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Texas A&M",         homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Ole Miss",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Arkansas",          homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Texas",             homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Georgia",           homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Kentucky",          homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Oklahoma",          homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Arkansas": [
+      { opponent:"North Alabama",     homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T16:15:00", kickoffTBD:false },
+      { opponent:"Utah",              homeAway:"Away", gameType:"Non-Conference Game", kickoff:"2026-09-12T21:15:00", kickoffTBD:false },
+      { opponent:"Georgia",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-19T11:00:00", kickoffTBD:false },
+      { opponent:"Tulsa",             homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-26T20:00:00", kickoffTBD:false },
+      { opponent:"Texas A&M",         homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Tennessee",         homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Vanderbilt",        homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Missouri",          homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Auburn",            homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"South Carolina",    homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Texas",             homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"LSU",               homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Florida": [
+      { opponent:"Florida Atlantic",  homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T19:45:00", kickoffTBD:false },
+      { opponent:"Campbell",          homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T17:30:00", kickoffTBD:false },
+      { opponent:"Auburn",            homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-19T19:00:00", kickoffTBD:false },
+      { opponent:"Ole Miss",          homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Missouri",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"South Carolina",    homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Texas",             homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Georgia",           homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-10-31T15:30:00", kickoffTBD:false },
+      { opponent:"Oklahoma",          homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Kentucky",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Vanderbilt",        homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Florida State",     homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-11-27T15:30:00", kickoffTBD:false }
+    ],
+    "Kentucky": [
+      { opponent:"Youngstown State",  homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T12:00:00", kickoffTBD:true },
+      { opponent:"Alabama",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-12T12:00:00", kickoffTBD:true },
+      { opponent:"Texas A&M",         homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-19T12:00:00", kickoffTBD:true },
+      { opponent:"South Alabama",     homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"South Carolina",    homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"LSU",               homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Oklahoma",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Vanderbilt",        homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Tennessee",         homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Florida",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Missouri",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Louisville",        homeAway:"Home", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "Mississippi State": [
+      { opponent:"Louisiana-Monroe",  homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T19:30:00", kickoffTBD:false },
+      { opponent:"Minnesota",         homeAway:"Away", gameType:"Non-Conference Game", kickoff:"2026-09-12T15:30:00", kickoffTBD:false },
+      { opponent:"South Carolina",    homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-19T16:15:00", kickoffTBD:false },
+      { opponent:"Missouri",          homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Alabama",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"LSU",               homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-17T12:00:00", kickoffTBD:true },
+      { opponent:"Oklahoma",          homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Texas",             homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Vanderbilt",        homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Auburn",            homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Tennessee Tech",    homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Ole Miss",          homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ],
+    "South Carolina": [
+      { opponent:"Kent State",        homeAway:"Home", gameType:"Season Opener",       kickoff:"2026-09-05T12:45:00", kickoffTBD:false },
+      { opponent:"Towson",            homeAway:"Home", gameType:"Non-Conference Game", kickoff:"2026-09-12T19:00:00", kickoffTBD:false },
+      { opponent:"Mississippi State", homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-09-19T16:15:00", kickoffTBD:false },
+      { opponent:"Alabama",           homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-09-26T12:00:00", kickoffTBD:true },
+      { opponent:"Kentucky",          homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-03T12:00:00", kickoffTBD:true },
+      { opponent:"Florida",           homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-10T12:00:00", kickoffTBD:true },
+      { opponent:"Tennessee",         homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-10-24T12:00:00", kickoffTBD:true },
+      { opponent:"Oklahoma",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-10-31T12:00:00", kickoffTBD:true },
+      { opponent:"Texas A&M",         homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-07T12:00:00", kickoffTBD:true },
+      { opponent:"Arkansas",          homeAway:"Away", gameType:"Conference Game",     kickoff:"2026-11-14T12:00:00", kickoffTBD:true },
+      { opponent:"Georgia",           homeAway:"Home", gameType:"Conference Game",     kickoff:"2026-11-21T12:00:00", kickoffTBD:true },
+      { opponent:"Clemson",           homeAway:"Away", gameType:"Rivalry Game",        kickoff:"2026-11-28T12:00:00", kickoffTBD:true }
+    ]
+  };
+
   const state = {
     teamIndex: TEAMS.findIndex(t=>t.name==="Tennessee"),
     swapped: false,
     gameType: "Rivalry Game",
     homeAway: "Home",
     kickoff: null,
+    kickoffTBD: false, // true when the date is known but the exact time hasn't been announced yet
     // Multiple named lists ("decks"), each holding its own saved games —
     // e.g. one per team — so you can swipe between separate schedules
     // without one import wiping out another.
@@ -1176,6 +1691,7 @@
   function setKickoffFromInput(){
     const v = kickoffInput.value;
     state.kickoff = v ? new Date(v) : defaultKickoff();
+    state.kickoffTBD = false; // a real time was just entered, so this game is no longer TBD
     saveState();
   }
 
@@ -1187,10 +1703,26 @@
   }
 
   function tick(){
+    const liveBanner = $("liveBanner");
+    const tbdBanner = $("tbdBanner");
+    const digits = $("digits");
+
+    if(state.kickoffTBD){
+      liveBanner.style.display = "none";
+      digits.style.display = "none";
+      tbdBanner.style.display = "block";
+      if(state.kickoff){
+        const opts = { weekday:'short', month:'short', day:'numeric' };
+        $("tbdBannerDate").textContent = state.kickoff.toLocaleDateString('en-US', opts);
+      } else {
+        $("tbdBannerDate").textContent = "";
+      }
+      return;
+    }
+    tbdBanner.style.display = "none";
+
     const now = new Date();
     let diff = state.kickoff - now;
-    const liveBanner = $("liveBanner");
-    const digits = $("digits");
     if(diff <= 0){
       liveBanner.style.display = "block";
       digits.style.display = "none";
@@ -1248,6 +1780,7 @@
     params.set("loc", state.homeAway);
     params.set("opp", opponentInput.value || "");
     params.set("ko", state.kickoff ? state.kickoff.toISOString() : "");
+    params.set("tbd", state.kickoffTBD ? "1" : "0");
     history.replaceState(null, "", "#" + params.toString());
     persistToDevice();
   }
@@ -1261,6 +1794,7 @@
     if(params.has("loc")) state.homeAway = params.get("loc") === "Away" ? "Away" : "Home";
     if(params.has("opp")) opponentInput.value = params.get("opp");
     if(params.has("ko") && params.get("ko")) state.kickoff = new Date(params.get("ko"));
+    if(params.has("tbd")) state.kickoffTBD = params.get("tbd") === "1";
     return true;
   }
 
@@ -1273,7 +1807,8 @@
       opponent: opponentInput.value || "",
       homeAway: state.homeAway,
       gameType: state.gameType,
-      kickoff: state.kickoff ? state.kickoff.toISOString() : null
+      kickoff: state.kickoff ? state.kickoff.toISOString() : null,
+      kickoffTBD: !!state.kickoffTBD
     };
   }
 
@@ -1284,6 +1819,7 @@
     state.gameType = game.gameType || state.gameType;
     opponentInput.value = game.opponent || "";
     state.kickoff = game.kickoff ? new Date(game.kickoff) : defaultKickoff();
+    state.kickoffTBD = !!game.kickoffTBD;
 
     teamSelect.value = state.teamIndex;
     kickoffInput.value = toLocalInputValue(state.kickoff);
@@ -1354,7 +1890,14 @@
       title.textContent = game.homeAway === "Away" ? `${t.name} @ ${oppText}` : `${t.name} vs ${oppText}`;
       const meta = document.createElement("div");
       meta.className = "season-item-meta";
-      const dateStr = game.kickoff ? new Date(game.kickoff).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : "No date set";
+      let dateStr;
+      if(game.kickoffTBD && game.kickoff){
+        dateStr = new Date(game.kickoff).toLocaleDateString('en-US', { month:'short', day:'numeric' }) + " · Time TBD";
+      } else if(game.kickoff){
+        dateStr = new Date(game.kickoff).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+      } else {
+        dateStr = "No date set";
+      }
       meta.textContent = `${game.gameType} · ${dateStr}`;
       info.appendChild(title);
       info.appendChild(meta);
@@ -1507,6 +2050,56 @@
     persistToDevice();
   });
 
+  // populate the "Load 2026 Schedule" dropdown, alphabetically
+  const preloadTeamSelect = $("preloadTeamSelect");
+  Object.keys(PRELOADED_SCHEDULES).sort().forEach(name=>{
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    preloadTeamSelect.appendChild(opt);
+  });
+
+  // Fills the active list with a real, built-in 2026 schedule — a
+  // shortcut for "Upload Schedule" that doesn't need a file. Replaces
+  // whatever's currently in this list, same as importing a file does.
+  $("preloadLoadBtn").addEventListener("click", ()=>{
+    const teamName = preloadTeamSelect.value;
+    const games = PRELOADED_SCHEDULES[teamName];
+    if(!games) return;
+    const teamIdx = TEAMS.findIndex(t => t.name === teamName);
+
+    const loaded = games.map(g => ({
+      id: (crypto.randomUUID ? crypto.randomUUID() : ("g"+Date.now()+Math.random())),
+      teamIndex: teamIdx >= 0 ? teamIdx : 0,
+      swapped: false,
+      opponent: g.opponent,
+      homeAway: g.homeAway,
+      gameType: g.gameType,
+      kickoff: g.kickoff,
+      kickoffTBD: !!g.kickoffTBD
+    }));
+
+    activeDeck().season = loaded;
+    if(activeDeck().name === "My Team" || activeDeck().name === "New Team"){
+      activeDeck().name = teamName;
+      deckNameInput.value = teamName;
+    }
+    state.editingId = null;
+    updateAddButtonLabel();
+    renderDeckSwitcher();
+    renderSeasonList();
+    persistToDevice();
+
+    const hint = $("preloadHint");
+    hint.textContent = `Loaded ${loaded.length} games for ${teamName} into "${activeDeck().name}".`;
+    clearTimeout(hint._clearTimer);
+    hint._clearTimer = setTimeout(()=>{
+      hint.textContent = "Instantly fills this list with a real 2026 schedule — replaces whatever's already in it.";
+    }, 4000);
+
+    if(state.autoAdvance) advanceToNextGameIfNeeded(true);
+  });
+
   // Swipe left/right anywhere on the Season Schedule panel to switch decks.
   // Only triggers on a clear horizontal swipe so normal scrolling and
   // taps on buttons inside the panel keep working as usual.
@@ -1590,7 +2183,8 @@
             opponent: g.opponent || "",
             homeAway: g.homeAway === "Away" ? "Away" : "Home",
             gameType: g.gameType || "Conference Game",
-            kickoff: g.kickoff || null
+            kickoff: g.kickoff || null,
+            kickoffTBD: !!g.kickoffTBD
           }));
           activeDeck().season = imported;
           importedCount = imported.length;
@@ -1633,6 +2227,7 @@
     state.homeAway = "Home";
     opponentInput.value = "Alabama";
     state.kickoff = defaultKickoff();
+    state.kickoffTBD = false;
     state.editingId = null;
     updateAddButtonLabel();
     teamSelect.value = state.teamIndex;
@@ -1766,6 +2361,7 @@
       state.gameType = g.gameType || state.gameType;
       opponentInput.value = g.opponent || "";
       state.kickoff = g.kickoff ? new Date(g.kickoff) : null;
+      state.kickoffTBD = !!g.kickoffTBD;
     }
   }
 
